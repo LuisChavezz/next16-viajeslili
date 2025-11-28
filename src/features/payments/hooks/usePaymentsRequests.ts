@@ -6,9 +6,19 @@ import { useNotificationsStore } from "@/src/stores/notifications.store";
 
 interface Options {
   status?: PaymentStatus;
+  page: number;
+  perPage: number;
 }
 
-export const usePaymentsRequests = ({ status }: Options) => {
+interface Response {
+  data: IPaymentRequest[];
+  page: number;
+  perPage: number;
+  total: number;
+  totalPages: number;
+}
+
+export const usePaymentsRequests = ({ status, page, perPage }: Options) => {
 
   const queryClient = useQueryClient();
 
@@ -20,20 +30,24 @@ export const usePaymentsRequests = ({ status }: Options) => {
     data,
     isLoading,
     isError,
+    refetch,
   } = useQuery({
     queryKey: ['paymentRequests', status],
-    queryFn: () => fetchPaymentRequests({ status }),
+    queryFn: () => fetchPaymentRequests({ status, page, perPage }),
   });
 
   // Function to update local status of a payment request and add a notification
   const updateLocalStatus = (id: string, newStatus: "Aprobado" | "Rechazado") => {
     // Update the local cache
-    queryClient.setQueryData(["paymentRequests", status], (oldData: IPaymentRequest[]) => {
+    queryClient.setQueryData(["paymentRequests", status], (oldData: Response) => {
       if (!oldData) return oldData;
 
-      return oldData.map((item) =>
-        item.id === id ? { ...item, status: newStatus } : item
-      );
+      return {
+        ...oldData,
+        data: oldData.data.map((request) =>
+          request.id === id ? { ...request, status: newStatus } : request
+        ),
+      }
     });
 
     // Add a notification about the status change
@@ -46,9 +60,14 @@ export const usePaymentsRequests = ({ status }: Options) => {
   };
 
   return {
-    paymentRequests: data,
+    paymentRequests: data?.data || [],
+    page: data?.page || 1,
+    perPage: data?.perPage || perPage,
+    total: data?.total || 0,
+    totalPages: data?.totalPages || 0,
     isLoading,
     isError,
+    refetch,
     updateLocalStatus,
   };
 }
